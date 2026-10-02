@@ -2,7 +2,7 @@
   "name": "promptcraft-studio",
   "private": true,
   "version": "0.1.0",
-  "description": "PromptCraft Studio — full-stack prompt engineering workspace (React + Express + Supabase)",
+  "description": "PromptCraft Studio \u2014 full-stack prompt engineering workspace (React + Express + Supabase)",
   "workspaces": [
     "client",
     "server"
@@ -13,12 +13,14 @@
     "dev:server": "npm run dev -w server",
     "build": "npm run build -w client",
     "lint": "npm run lint --workspaces --if-present",
-    "start": "npm run start -w server"
+    "start": "npm run start -w server",
+    "deploy": "vercel --prod"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"
-  }
+  },
+  "type": "module"
 }

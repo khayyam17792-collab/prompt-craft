@@ -102,3 +102,23 @@ run queries through an RLS-scoped Supabase client. Template helpers (`extractVar
 Dark-mode glassmorphic theme defined in `client/src/index.css` via Tailwind v4 `@theme` tokens and
 custom utilities (`glass`, `glass-strong`, `glass-hover`, `text-gradient`). Reusable primitives live in
 `client/src/components/` (`GlassCard`, `Button`, `Badge`, `Input`, `Modal`, `EmptyState`, `PromptCard`).
+
+## Deploying to Vercel
+
+`vercel.json` builds the Vite client to `client/dist` as static output and serves the Express app
+from a single serverless function (`api/index.js` re-exports `server/index.js`, which skips
+`app.listen` when `VERCEL` is set). `/api/*` is rewritten to the function; everything else falls back
+to `index.html` for client-side routing.
+
+```bash
+npm i -g vercel
+vercel link                                  # one-time: create/link the Vercel project
+vercel env add VITE_SUPABASE_URL production
+vercel env add VITE_SUPABASE_ANON_KEY production
+vercel env add SUPABASE_SERVICE_ROLE_KEY production
+npm run deploy                               # vercel --prod
+```
+
+Apply `supabase/schema.sql` (and optionally `supabase/seed.sql`) to the hosted project first, e.g.
+`psql "$SUPABASE_DB_URL" -f supabase/schema.sql`, and add the production URL to **Authentication →
+URL Configuration** (Site URL / redirect URLs) in the Supabase dashboard.

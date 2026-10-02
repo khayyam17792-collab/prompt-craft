@@ -351,8 +351,10 @@ app.use((err, _req, res, _next) => {
   res.status(err.status ?? 500).json({ error: err.message ?? 'Internal server error' })
 })
 
-app.listen(port, () => {
-  console.log(`[server] listening on http://localhost:${port}`)
-})
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`[server] listening on http://localhost:${port}`)
+  })
+}
 
 export default app
