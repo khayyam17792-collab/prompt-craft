@@ -1,0 +1,24 @@
+{
+  "name": "@promptcraft-studio/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "lint": "oxlint"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "oxlint": "^1.86.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1"
+  }
+}
