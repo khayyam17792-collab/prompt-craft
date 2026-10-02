@@ -21,7 +21,7 @@ app.use(optionalAuth)
 // ---------------------------------------------------------------------------
 
 const PROMPT_COLUMNS =
-  'id, user_id, title, description, template_text, variables, tags, likes_count, is_public, created_at, profiles ( username, avatar_url )'
+  'id, user_id, title, description, template_text, variables, tags, likes_count, is_public, created_at, profiles!user_id ( username, avatar_url )'
 
 const SORTS = {
   newest: { column: 'created_at', ascending: false },
@@ -63,6 +63,22 @@ function sendSupabaseError(res, error) {
   }
   console.error(error)
   return res.status(500).json({ error: error.message ?? 'Database error' })
+}
+
+/** Adds `liked_by_me` to prompt rows for the authenticated caller (false when anonymous). */
+async function withLikedByMe(req, rows) {
+  const list = Array.isArray(rows) ? rows : [rows]
+  if (!req.user || list.length === 0) return list.map((row) => ({ ...row, liked_by_me: false }))
+
+  const { data, error } = await supabaseAdmin
+    .from('prompt_likes')
+    .select('prompt_id')
+    .eq('user_id', req.user.id)
+    .in('prompt_id', list.map((row) => row.id))
+  if (error) throw error
+
+  const liked = new Set(data.map((row) => row.prompt_id))
+  return list.map((row) => ({ ...row, liked_by_me: liked.has(row.id) }))
 }
 
 /** Whitelists and lightly validates writable prompt fields from a request body. */
@@ -145,7 +161,10 @@ app.get('/api/prompts', requireSupabase, async (req, res) => {
   const { data, error, count } = await query
   if (error) return sendSupabaseError(res, error)
 
-  res.json({ data, pagination: { limit, offset, total: count ?? data.length } })
+  res.json({
+    data: await withLikedByMe(req, data),
+    pagination: { limit, offset, total: count ?? data.length },
+  })
 })
 
 /** GET /api/prompts/tags — distinct tags across public prompts with counts */
@@ -171,7 +190,8 @@ app.get('/api/prompts/:id', requireSupabase, validateUuid('id'), async (req, res
 
   const { data, error } = await query.single()
   if (error) return sendSupabaseError(res, error)
-  res.json({ data })
+  const [prompt] = await withLikedByMe(req, data)
+  res.json({ data: prompt })
 })
 
 // ---------------------------------------------------------------------------
@@ -253,7 +273,10 @@ app.get('/api/me/prompts', requireSupabase, requireAuth, async (req, res) => {
     .order('created_at', { ascending: false })
     .range(from, to)
   if (error) return sendSupabaseError(res, error)
-  res.json({ data, pagination: { limit, offset, total: count ?? data.length } })
+  res.json({
+    data: await withLikedByMe(req, data),
+    pagination: { limit, offset, total: count ?? data.length },
+  })
 })
 
 /** POST /api/prompts — create a prompt owned by the caller */
@@ -302,16 +325,16 @@ app.delete('/api/prompts/:id', requireSupabase, requireAuth, validateUuid('id'),
   res.status(204).end()
 })
 
-/** POST /api/prompts/:id/like — increment likes on a public prompt */
+/** POST /api/prompts/:id/like — toggle the caller's like; returns { liked, likes_count } */
 app.post('/api/prompts/:id/like', requireSupabase, requireAuth, validateUuid('id'), async (req, res) => {
-  const { data, error } = await req.supabase.rpc('increment_prompt_likes', {
-    prompt_id: req.params.id,
-  })
+  const { data, error } = await req.supabase
+    .rpc('toggle_prompt_like', { prompt_id: req.params.id })
+    .single()
   if (error) {
     if (error.code === 'P0002') return res.status(404).json({ error: 'Prompt not found' })
     return sendSupabaseError(res, error)
   }
-  res.json({ data: { id: req.params.id, likes_count: data } })
+  res.json({ data: { id: req.params.id, liked: data.liked, likes_count: data.likes_count } })
 })
 
 // ---------------------------------------------------------------------------

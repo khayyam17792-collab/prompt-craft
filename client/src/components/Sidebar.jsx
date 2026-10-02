@@ -1,17 +1,18 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Library, Settings, Sparkles } from 'lucide-react'
+import { Compass, FlaskConical, Library, Settings, Sparkles } from 'lucide-react'
 import { cn } from '../lib/cn'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/library', label: 'Prompt Library', icon: Library },
+  { to: '/', label: 'Explorer', icon: Compass, end: true },
+  { to: '/prompts/new', label: 'Playground', icon: FlaskConical },
+  { to: '/library', label: 'My Prompts', icon: Library },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Sidebar() {
   return (
     <aside className="glass-strong flex h-full w-64 shrink-0 flex-col p-4">
-      <div className="mb-8 flex items-center gap-3 px-2">
+      <NavLink to="/" className="mb-8 flex items-center gap-3 px-2">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent-500 to-glow-500 shadow-glow">
           <Sparkles className="h-5 w-5 text-white" />
         </span>
@@ -19,7 +20,7 @@ export default function Sidebar() {
           <p className="text-sm font-semibold tracking-tight text-white">PromptCraft</p>
           <p className="text-xs text-slate-400">Studio</p>
         </div>
-      </div>
+      </NavLink>
 
       <nav className="flex flex-1 flex-col gap-1">
         {navItems.map(({ to, label, icon: Icon, end }) => (

@@ -38,10 +38,23 @@ create index if not exists prompts_public_idx     on public.prompts (is_public) 
 create index if not exists prompts_tags_idx       on public.prompts using gin (tags);
 
 -- ---------------------------------------------------------------------------
+-- prompt_likes (one row per user per prompt; likes_count is kept in sync)
+-- ---------------------------------------------------------------------------
+create table if not exists public.prompt_likes (
+  prompt_id   uuid not null references public.prompts (id) on delete cascade,
+  user_id     uuid not null references public.profiles (id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (prompt_id, user_id)
+);
+
+create index if not exists prompt_likes_user_id_idx on public.prompt_likes (user_id);
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
 alter table public.profiles enable row level security;
 alter table public.prompts  enable row level security;
+alter table public.prompt_likes enable row level security;
 
 -- profiles: anyone can read, users manage only their own row
 drop policy if exists "profiles_select_public" on public.profiles;
@@ -88,6 +101,24 @@ create policy "prompts_delete_own"
   to authenticated
   using (auth.uid() = user_id);
 
+-- prompt_likes: anyone can read, users manage only their own likes
+drop policy if exists "prompt_likes_select_public" on public.prompt_likes;
+create policy "prompt_likes_select_public"
+  on public.prompt_likes for select
+  using (true);
+
+drop policy if exists "prompt_likes_insert_own" on public.prompt_likes;
+create policy "prompt_likes_insert_own"
+  on public.prompt_likes for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "prompt_likes_delete_own" on public.prompt_likes;
+create policy "prompt_likes_delete_own"
+  on public.prompt_likes for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
 -- ---------------------------------------------------------------------------
 -- Functions & triggers
 -- ---------------------------------------------------------------------------
@@ -115,32 +146,50 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Atomically increment likes on a public prompt. Callable by authenticated users
--- via supabase.rpc('increment_prompt_likes', { prompt_id }).
-create or replace function public.increment_prompt_likes(prompt_id uuid)
-returns integer
+-- Toggle the caller's like on a public prompt and keep prompts.likes_count in sync.
+-- Callable via supabase.rpc('toggle_prompt_like', { prompt_id }).
+create or replace function public.toggle_prompt_like(prompt_id uuid)
+returns table (liked boolean, likes_count integer)
 language plpgsql
 security definer set search_path = public
 as $$
 declare
-  new_count integer;
+  uid uuid := auth.uid();
+  target_id uuid := prompt_id;
+  removed boolean;
 begin
-  if auth.uid() is null then
+  if uid is null then
     raise exception 'authentication required' using errcode = '42501';
   end if;
 
-  update public.prompts
-     set likes_count = likes_count + 1
-   where id = prompt_id and is_public = true
-  returning likes_count into new_count;
-
-  if new_count is null then
+  if not exists (
+    select 1 from public.prompts p
+     where p.id = target_id and (p.is_public = true or p.user_id = uid)
+  ) then
     raise exception 'prompt not found' using errcode = 'P0002';
   end if;
 
-  return new_count;
+  delete from public.prompt_likes pl
+   where pl.prompt_id = target_id and pl.user_id = uid;
+  removed := found;
+
+  if removed then
+    update public.prompts p
+       set likes_count = greatest(p.likes_count - 1, 0)
+     where p.id = target_id;
+  else
+    insert into public.prompt_likes (prompt_id, user_id) values (target_id, uid);
+    update public.prompts p
+       set likes_count = p.likes_count + 1
+     where p.id = target_id;
+  end if;
+
+  return query
+    select not removed, p.likes_count
+      from public.prompts p
+     where p.id = target_id;
 end;
 $$;
 
-revoke all on function public.increment_prompt_likes(uuid) from public;
-grant execute on function public.increment_prompt_likes(uuid) to authenticated;
+revoke all on function public.toggle_prompt_like(uuid) from public;
+grant execute on function public.toggle_prompt_like(uuid) to authenticated;
