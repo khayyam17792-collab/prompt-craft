@@ -25,7 +25,7 @@ export default function Header({ title }) {
   }, [menuOpen])
 
   return (
-    <header className="glass flex items-center justify-between px-6 py-3">
+    <header className="glass relative z-30 flex items-center justify-between px-6 py-3">
       <h1 className="text-lg font-semibold tracking-tight text-white">{title}</h1>
 
       <div className="flex items-center gap-3">
@@ -57,7 +57,7 @@ export default function Header({ title }) {
             {menuOpen && (
               <div
                 role="menu"
-                className="glass-strong absolute right-0 mt-2 w-56 overflow-hidden p-1.5 text-sm shadow-glow"
+                className="glass-strong absolute right-0 z-50 mt-2 w-56 overflow-hidden p-1.5 text-sm shadow-glow"
               >
                 <p className="truncate px-3 py-2 text-xs text-slate-400">{user.email}</p>
                 <button
